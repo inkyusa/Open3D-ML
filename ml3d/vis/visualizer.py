@@ -253,7 +253,8 @@ class DatasetModel(Model):
         super().__init__()
         self._dataset = None
         self._name2datasetidx = {}
-        self._memory_limit = 8192 * 1024 * 1024  # memory limit in bytes
+        # 8192 * 1024 * 1024 = 315 sample, 8192MB
+        self._memory_limit = 8192 * 1024 * 1024 * 8 # memory limit in bytes
         self._current_memory_usage = 0
         self._cached_data = deque()
 
@@ -267,6 +268,7 @@ class DatasetModel(Model):
             for i in range(0, len(self._dataset.path_list)):
                 path2idx[self._dataset.path_list[i]] = i
             real_indices = [path2idx[p] for p in sorted(path2idx.keys())]
+            print("len real_indices = ", len(real_indices))
             indices = [real_indices[idx] for idx in indices]
 
             # SemanticKITTI names its items <sequence#>_<timeslice#>,
@@ -275,8 +277,9 @@ class DatasetModel(Model):
             # because this format is used to report algorithm results, so do it
             # here.
             underscore_to_slash = False
-            if dataset.__class__.__name__ == "SemanticKITTI":
+            if dataset.__class__.__name__ == "SemanticKITTI" or "Rellis3D":
                 underscore_to_slash = True
+                print("underscore_to_slash set to True")
 
             for i in indices:
                 info = self._dataset.get_attr(i)
@@ -1495,8 +1498,28 @@ class Visualizer:
         """
         # Setup the labels
         lut = LabelLUT()
-        for val in sorted(dataset.label_to_names.values()):
-            lut.add_label(val, val)
+        if dataset.__class__.__name__ == "SemanticKITTI":
+            # for val in sorted(dataset.label_to_names.values()):
+            #     lut.add_label(val, val)
+            for i, val in enumerate(dataset.label_to_names.values()):
+                label_idx = dataset.label_indices[i]
+                lut.add_label(val, label_idx)
+        elif dataset.__class__.__name__ == "Rellis3D":
+            for i in range(len(dataset.label_to_names)):
+                label_idx = dataset.label_indices[i]
+                label_name = dataset.label_to_names.get(label_idx)
+                #label_colour = dataset.colour_map.get(label_idx)
+                label_colour = [colour/255. for colour in dataset.colour_map.get(label_idx)]
+                label_colour = label_colour[:: -1] #BGR to RGB
+                #print("label_idx = ", label_idx)
+                #print("label_name = ", label_name)
+                #print("label_colour = ", label_colour)
+                lut.add_label(label_name, label_idx, label_colour)
+                #print("\n\n")
+            # for i, val in enumerate(dataset.label_to_names.values()):
+            #     label_idx = dataset.label_indices[i]
+            #     lut.add_label(val, label_idx)
+
         self.set_lut("labels", lut)
 
         self._consolidate_bounding_boxes = True
